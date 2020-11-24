@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch4jConfig>
+  <dontWrapJar>false</dontWrapJar>
+  <headerType>gui</headerType>
+  <jar>C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.0\Cliente de firma digital SAT.jar</jar>
+  <outfile>C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.0\Cliente de firma digital SAT.exe</outfile>
+  <errTitle>Error</errTitle>
+  <cmdLine></cmdLine>
+  <chdir>.</chdir>
+  <priority>normal</priority>
+  <downloadUrl>http://java.com/download</downloadUrl>
+  <supportUrl>https://insigniait.com.mx</supportUrl>
+  <stayAlive>false</stayAlive>
+  <restartOnCrash>true</restartOnCrash>
+  <manifest></manifest>
+  <icon>C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.0\icono.ico</icon>
+  <singleInstance>
+    <mutexName>CLNT-FRM-DGT-SAT</mutexName>
+    <windowTitle>Cliente de firma digital SAT</windowTitle>
+  </singleInstance>
+  <jre>
+    <path></path>
+    <bundledJre64Bit>false</bundledJre64Bit>
+    <bundledJreAsFallback>false</bundledJreAsFallback>
+    <minVersion>1.8.0</minVersion>
+    <maxVersion></maxVersion>
+    <jdkPreference>preferJre</jdkPreference>
+    <runtimeBits>64/32</runtimeBits>
+  </jre>
+</launch4jConfig>

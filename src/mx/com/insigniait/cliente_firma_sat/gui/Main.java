@@ -138,141 +138,32 @@ public class Main extends Application {
 		flowPane.setOrientation(Orientation.VERTICAL);
 		flowPane.setHgap(20);
 		flowPane.setVgap(10);
-		
+
 		// Contenedor principal
 		Scene scene = new Scene(flowPane, 420, 150);
-		
+
 		// Configuración de ventana
 		stage.setTitle("Cliente de firma digital SAT");
 		stage.getIcons().add(new Image("icono.png"));
 		stage.setResizable(false);
 		stage.setScene(scene);
 		stage.show();
-		
+
 		// Eventos
 		btnElegir.setOnAction(e -> {
 			if (certCombo.getValue() != null) {
-				runSigner(parametros, stage, certCombo.getValue());
+				
+				//Cargando
+				btnElegir.setText("Cargando...");
+				btnElegir.setDisable(true);
+				certCombo.setDisable(true);
+				
+				parametros.put("alias", certCombo.getValue());
+				Debug.info("Certificado seleccionado: " + parametros.get("alias"));
+				Debug.info("Iniciando firma...");
+				
+				new Thread(new SignerTask(parametros)).start();
 			}
 		});
-	}
-
-	/*
-	 * Proceso principal
-	 */
-	public void runSigner(Map<String, String> parametros, Stage stage, String certificateAlias) {
-
-		//Credenciales
-		X509Certificate cert;
-		PrivateKey pk;
-		Certificate[] chain;
-		
-		try {
-			cert 	= 	CredentialStorage.getCertificate(certificateAlias);
-			pk 		= 	CredentialStorage.getPrivateKey(certificateAlias);
-			chain	=	CredentialStorage.getCertificateChain(certificateAlias);
-			
-			//Documento a firmar
-			String 	docUrl 	= 	parametros.get("doc");
-			File 	pdf 	= 	File.createTempFile("cfd_", ".pdf");
-					
-			FileUtils.copyInputStreamToFile(new URL(docUrl).openStream(), pdf);
-			
-			//Firma
-			SatSigner 	signature 		= 	new SatSigner(cert, pk, chain);
-			String		tsaClientUrl	=	Util.getApplicationProperty("tsa_client");
-			signature.setTsaClient(new TimestampAuthorityClient(tsaClientUrl, null, null));
-			
-			File 		signedPdf 		=	new SigningService().signPdf(pdf, signature);
-			
-			//Autenticación de guardado
-			String auth 		= 	parametros.get("username") + ":" + parametros.get("password");
-			byte[] encodedAuth 	= 	Base64.getEncoder().encode(auth.getBytes("UTF-8"));
-			
-			//URL de guardado
-			String  url = parametros.get("referer");
-			url += url.endsWith("/") ? "" : "/";
-			url += Util.getApplicationProperty("protocol") + "/save";
-			
-			//Creando solicitud
-            HttpEntity data = MultipartEntityBuilder
-        		.create()
-        		.setMode(HttpMultipartMode.BROWSER_COMPATIBLE)
-        		.addBinaryBody("file", signedPdf, ContentType.DEFAULT_BINARY, signedPdf.getName())
-        		.addTextBody("docId", parametros.get("docId"))
-        		.addTextBody("signer", certificateAlias)
-        		.build();
-		
-			HttpUriRequest request = RequestBuilder.post()
-			  .setUri(url)
-			  .setEntity(data)
-			  .setHeader(HttpHeaders.AUTHORIZATION, "Basic " + new String(encodedAuth))
-			  .build();
-			
-			//Llamada ciclada en caso de error
-			AtomicBoolean exito = new AtomicBoolean(false);
-
-			do {
-				//Código de respuesta
-				HttpResponse 	response 		= 	HttpClients.custom().build().execute(request);
-				int 			responseCode 	= 	response.getStatusLine().getStatusCode();
-				
-				//En caso de exito guardar la respuesta en los argumentos de la aplicación
-				if (responseCode >= 200 && responseCode < 300) {
-					argumentos.put("response", EntityUtils.toString(response.getEntity()));
-					exito.set(true);
-				} 
-				//En caso de fallo mostrar un dialogo de decisión: Reintentar o guardar localmente
-				else {
-					ChoiceDialog<String> 	decision 	= 	new ChoiceDialog<String>();
-					ObservableList<String> 	options 	= 	decision.getItems();
-					
-					decision.setTitle("Error de conexión");
-					decision.setContentText("Ocurrio un error al subir el documento firmado: " + response.getStatusLine().getReasonPhrase());
-					
-					options.add("Reintentar");
-					options.add("Guardar en mi PC");
-					
-					Optional<String> optionSelected 	= 	decision.showAndWait();
-					
-					optionSelected.ifPresent(option -> {
-						switch (option) {
-							case "Guardar localmente":
-								try {
-									String filePath = System.getProperty("user.home") + "/Desktop/" + signedPdf.getName() + ".pdf";
-									FileUtils.moveFile(signedPdf, new File(filePath));
-									exito.set(true);
-								} 
-								catch (IOException e) { }
-						}
-					});
-				}
-			}
-			while(!exito.get());
-			
-			//Éxito
-			Alert alert = new Alert(AlertType.INFORMATION, Arrays.asList(argumentos.values().toArray()).toString(), ButtonType.OK);
-			alert.setHeaderText("Firma exitosa");
-			alert.setTitle("Firma exitosa");
-			alert.setResizable(false);
-			alert.setOnCloseRequest(e2 -> System.exit(0));
-			alert.show();
-		} 
-		catch (Exception e1) {
-			e1.printStackTrace();
-			throwError(e1.getMessage());
-		}
-	}
-	
-	/*
-	 * Modal de error
-	 */
-	public void throwError(String errorMsg) {
-		Alert alert = new Alert(AlertType.ERROR, errorMsg, ButtonType.OK);
-		alert.setHeaderText("Error");
-		alert.setTitle("Error");
-		alert.setResizable(false);
-		alert.show();
-		alert.setOnCloseRequest(e -> System.exit(0));
 	}
 }

@@ -7,16 +7,11 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 
 import org.springframework.security.crypto.encrypt.Encryptors;
 import org.springframework.security.crypto.encrypt.TextEncryptor;
 
-import javafx.scene.control.ButtonBase;
-import javafx.scene.input.KeyCode;
-
-@SuppressWarnings("restriction")
-public class Util {
+public class Utils {
 
 	/*
 	 * Recupera el stream de datos de una URL
@@ -31,7 +26,7 @@ public class Util {
 	public static Map<String, String> getProtocolQueryParams(String url) {
 		
 		Map<String, String> parametros 	= 	new HashMap<String, String>();
-		String 				protocol 	= 	getApplicationProperty("protocol");
+		String 				protocol 	= 	AppProperties.get("protocol");
 		
 		if(protocol == null || !url.startsWith(protocol + ":?")) {
 			return null;
@@ -87,36 +82,6 @@ public class Util {
 		}
 		
 		return mapa;
-	}
-	
-	/*
-	 * Permite utilizar la tecla Enter como Click en un botón
-	 */
-	public static void setEnterAsClick(ButtonBase btn) {
-		btn.setOnKeyPressed(event -> {
-            if (event.getCode().equals(KeyCode.ENTER)) {
-            	btn.fire();
-            }
-        });
-	}
-	
-	/*
-	 * Recuperar propiedades de la aplicación
-	 * Retorna @null si el código o el archivo de propiedades no existe
-	 */
-	public static String getApplicationProperty(String code) {
-		InputStream is 		= 	Util.class.getClassLoader().getResourceAsStream("app.properties");
-		Properties 	prop 	= 	new Properties();
-
-		if (is != null) {
-			try {
-				prop.load(is);
-				return prop.getProperty(code);
-			} 
-			catch (IOException e) {	}
-		} 
-		
-		return null;
 	}
 	
 	/*

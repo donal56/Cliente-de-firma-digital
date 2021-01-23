@@ -33,6 +33,8 @@ import org.bouncycastle.tsp.TimeStampRequestGenerator;
 import org.bouncycastle.tsp.TimeStampResponse;
 import org.bouncycastle.tsp.TimeStampToken;
 
+import mx.com.insigniait.cliente_firma_sat.util.Debug;
+
 /*
  * Cliente de firma de estampas de tiempo
  */
@@ -46,11 +48,21 @@ public class TimestampAuthorityClient {
     /*
      * Datos de la autoridad de estampa de tiempo (TSA)
      */
+    public TimestampAuthorityClient(String url) throws MalformedURLException, NoSuchAlgorithmException {
+    	this(url, null, null);
+    }
+
     public TimestampAuthorityClient(String url, String username, String password) throws MalformedURLException, NoSuchAlgorithmException {
-        this.url 		= 	new URL(url);
-        this.username 	= 	username;
-        this.password 	= 	password;
-        this.digest 	= 	MessageDigest.getInstance("SHA-256");
+        this(url, username, password, "SHA-256");
+    }
+    
+    public TimestampAuthorityClient(String url, String username, String password, String digest) throws MalformedURLException, NoSuchAlgorithmException {
+    	this.url 		= 	new URL(url);
+    	this.username 	= 	username;
+    	this.password 	= 	password;
+    	this.digest 	= 	MessageDigest.getInstance(digest);
+    	
+    	Debug.info("Creando conexión a TSA(" + url + ") usando " + digest);
     }
 
     public URL getUrl() {

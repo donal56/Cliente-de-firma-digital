@@ -2,7 +2,6 @@ package mx.com.insigniait.cliente_firma_sat.dto;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.security.InvalidKeyException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -12,6 +11,8 @@ import java.security.SignatureException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateExpiredException;
+import java.security.cert.CertificateNotYetValidException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Base64;
@@ -31,6 +32,7 @@ import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
 import org.bouncycastle.tsp.TSPException;
 
 import mx.com.insigniait.cliente_firma_sat.services.TimestampAuthorityClient;
+import mx.com.insigniait.cliente_firma_sat.util.Debug;
 
 /*
  * Implementación de firma para PDFBox
@@ -96,13 +98,21 @@ public class SatSigner implements SignatureInterface  {
 	/*
 	 * Verifica firma de cadena de texto
 	 */
-	public boolean verifySignatureSimple(String plainMsg, String signatureBase64) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, UnsupportedEncodingException {
+	public void verifySignatureSimple(String plainMsg, String signatureBase64) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, IOException {
         
 		Signature signer = Signature.getInstance(algorithm);
         signer.initVerify(certificate);
         signer.update(plainMsg.getBytes("UTF8"));
         
-        return signer.verify(Base64.getDecoder().decode(signatureBase64));
+        Boolean verified = signer.verify(Base64.getDecoder().decode(signatureBase64));
+        
+        if(verified) {
+        	Debug.info("Verificación simple exitosa");
+        }
+        else {
+        	Debug.error("La llave privada y el certificado no corresponden");
+        	throw new IOException("Verificación simple fallada.");
+        }
 	}
 	
 	/*
@@ -114,31 +124,43 @@ public class SatSigner implements SignatureInterface  {
 		
 		verifyCertificateVigency();
 		
-	    String TEST_STRING = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
+		//Encriptamos un texto y lo desencriptamos para validar que las llaves sean correspondientes
+	    String TEST_STRING 		= 	"Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
+  		String signatureBase64 	= 	simpleSign(TEST_STRING);
+
+  		verifySignatureSimple(TEST_STRING, signatureBase64);
 		
 		//Los certificados CSD solo permiten la firma digital
 		int pathLen = certificate.getBasicConstraints();
+		
 		if(pathLen != -1) {
-		    throw new Exception("El certificado no es un CSD, posee el atributo de Autoridad Certificadora (CA)");
+        	Debug.error("El certificado no es un CSD, posee el atributo de Autoridad Certificadora(CA): " + pathLen);
+		    throw new Exception("El certificado no es una e-firma");
 		}
 			
 		if(getSerial().length() != 20) {
-		    throw new Exception("El numero de serie del certificado debe contener 20 caracteres");
+			Debug.error("El numero de serie del certificado debe contener 20 caracteres: " + getSerial());
+			throw new Exception("El certificado no es una e-firma");
 		}
 
-		//Encriptamos un texto y lo desencriptamos para validar que las llaves sean correspondientes
-		String signatureBase64 = simpleSign(TEST_STRING);
-
-		if(!verifySignatureSimple(TEST_STRING, signatureBase64)) {
-		    throw new Exception("La llave privada y el certificado no corresponden");
-		}
+		Debug.info("El certificado es una e-firma");
 	}
 	
 	/*
 	 * Verifica la vigencia del certificado
 	 */
 	public void verifyCertificateVigency() throws Exception {
-		certificate.checkValidity();
+		try {
+			certificate.checkValidity();
+		}
+		catch (CertificateExpiredException e) {
+			Debug.error("El certificado expiró");
+			throw new Exception(e);
+		}
+		catch (CertificateNotYetValidException e) {
+			Debug.error("El certificado aun no entra en su periodo de validez");
+			throw new Exception(e);
+		}
 	}
 	
 	/*
@@ -173,7 +195,7 @@ public class SatSigner implements SignatureInterface  {
 		} 
 		catch (Exception e1) {
 			e1.printStackTrace();
-			throw new IOException(e1.getMessage(), e1.getCause());
+			throw new IOException("Error al firmar PDF: " + e1.getMessage());
 		}
 		
 		CMSSignedDataGenerator generator = new CMSSignedDataGenerator();
@@ -210,6 +232,8 @@ public class SatSigner implements SignatureInterface  {
 			return signedData.getEncoded();
 		} 
 		catch (OperatorCreationException | CertificateEncodingException | CMSException | NoSuchAlgorithmException | IOException | TSPException e) {
+			Debug.error("Error al firmar PDF: " + e.getMessage());
+			
 			e.printStackTrace();
 			throw new IOException(e.getMessage(), e.getCause());
 		}

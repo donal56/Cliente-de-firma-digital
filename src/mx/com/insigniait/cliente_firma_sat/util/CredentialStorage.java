@@ -28,7 +28,7 @@ public class CredentialStorage {
     	if(ks == null) {
     		
         	if(!System.getProperty("os.name").toLowerCase().startsWith("windows")) {
-        		throw new IllegalStateException("La aplicación solo es ejecutable en Windows.");
+        		GuiUtils.throwError("La aplicación solo es ejecutable en Windows.", "OS no soportado: " + System.getProperty("os.name"));
         	}
         	
     		ks = KeyStore.getInstance("Windows-MY");

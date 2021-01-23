@@ -10,6 +10,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,8 @@ import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import org.apache.pdfbox.util.Matrix;
 
 import mx.com.insigniait.cliente_firma_sat.dto.SatSigner;
-import mx.com.insigniait.cliente_firma_sat.util.Util;
+import mx.com.insigniait.cliente_firma_sat.util.Debug;
+import mx.com.insigniait.cliente_firma_sat.util.Utils;
 
 public class SigningService {
 
@@ -57,7 +59,8 @@ public class SigningService {
 		PDDocument 			doc 	= 	PDDocument.load(pdf);
 
 		// Atributos del certificado
-		Map<String, String> signerAttributes = Util.createMapFromCommaSeparatedString(signer.getCertificate().getSubjectDN().getName());
+		Map<String, String> signerAttributes = Utils.createMapFromCommaSeparatedString(signer.getCertificate().getSubjectDN().getName());
+		Debug.info("Atributos del certificado cargados: " + signerAttributes.toString());
 
 		String commonName 		= 	signerAttributes.get("CN");
 		String email 			=	signerAttributes.get("EMAILADDRESS");
@@ -80,14 +83,26 @@ public class SigningService {
 		PDAcroForm 	acroForm 			= 	doc.getDocumentCatalog().getAcroForm();
 
 		if (acroForm != null) {
-			pdSignature = findExistingSignature(acroForm, signatureFieldName);
+			PDSignature existingSignature = findExistingSignature(acroForm, signatureFieldName);
+			
+			if(existingSignature != null) {
+				pdSignature = existingSignature;
+				Debug.error("Se encontro una firma existente para el mismo certificado.\n" 
+						+ "La firma anterior anterior data de " + pdSignature.getSignDate().getTime().toString() + " y fue firmada por " 
+						+  pdSignature.getContactInfo() + "\n"
+						+ "Se procederan a actualizar la razón y fecha de firma.");
+
+				pdSignature.setReason("Firma desde cliente de firma electrónica");
+				pdSignature.setSignDate(Calendar.getInstance());
+			}
 			
 			if(acroForm.getNeedAppearances()) {
 				if (acroForm.getFields().isEmpty()) {
 					acroForm.getCOSObject().removeItem(COSName.NEED_APPEARANCES);
+					Debug.info("Se autoconfiguro el formulario de firma para ser visible en visores como Adobe Reader (Atributo NeedsAppearances)");
 				} 
 				else {
-					System.out.println("La firma posiblemente resulte no visible en programas como Adobe Reader.");
+					Debug.error("La firma posiblemente resulte no visible en programas como Adobe Reader.");
 				}
 			}
 		}
@@ -96,15 +111,18 @@ public class SigningService {
 		//TODO: hash usando la llave pública
 		FileInputStream fis 	= 	new FileInputStream(pdf);
 		String 			md5 	= 	DigestUtils.md5Hex(fis);
+		Debug.info("Calculado MD5 de documento original: " + md5);
 		
 		// Opciones de firma visual
 		SignatureOptions signatureOptions = new SignatureOptions();
 		signatureOptions.setVisualSignature(createVisualSignatureTemplate(doc, pdSignature, signatureFieldName, md5));
 		signatureOptions.setPage(doc.getNumberOfPages() - 1);
 
+		Debug.info("Agregando firma...");
 		doc.addSignature(pdSignature, signer, signatureOptions);
 
 		// Si se guarda por el método 'save' común se podría romper el pdf
+		Debug.info("Compilado PDF firmado...");
 		doc.saveIncremental(fos);
 		doc.close();
 
@@ -120,13 +138,18 @@ public class SigningService {
 		int 	pageNum 	=	srcDoc.getNumberOfPages() - 1;
 		PDPage 	lastPage 	=	srcDoc.getPage(pageNum);
 		
+		Debug.info("Se colocara la firma en la página " + pageNum);
+		
 		//Especifica el espacio en donde se creara la firma visual, tomando en cuenta si ya existia una previa
 		PDAcroForm 	acroFormSrc = 	srcDoc.getDocumentCatalog().getAcroForm();
-		Rectangle2D	humanRect	=	new Rectangle2D.Float(40, lastPage.getMediaBox().getHeight() - 60, lastPage.getMediaBox().getWidth() - 80, 30);
-		PDRectangle rect 		= 	createSignatureRectangle(lastPage, humanRect);
+		PDRectangle rect 		= 	null;
 
-		if (acroFormSrc != null) {
-			rect = acroFormSrc.getField(signatureFieldName).getWidgets().get(0).getRectangle();
+		if (acroFormSrc != null && acroFormSrc.getField(signatureFieldName) != null) {
+			rect 	= 	acroFormSrc.getField(signatureFieldName).getWidgets().get(0).getRectangle();
+		}
+		else {
+			Rectangle2D	humanRect =	new Rectangle2D.Float(40, lastPage.getMediaBox().getHeight() - 60, lastPage.getMediaBox().getWidth() - 80, 30);
+			rect 	=	 createSignatureRectangle(lastPage, humanRect);
 		}
 		
 		//Nuevo documento
@@ -200,10 +223,14 @@ public class SigningService {
 			// Firma en texto
 			try (PDPageContentStream cs = new PDPageContentStream(doc, appearanceStream)) {
 
+				Debug.info("Generando firma visual...");
+				
 				if (initialScale != null) {
 					cs.transform(initialScale);
 				}
 				
+				SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+
 				cs.beginText();
 				cs.setLeading(13.5f);
 				cs.setFont(PDType1Font.HELVETICA_BOLD, 9);
@@ -211,7 +238,7 @@ public class SigningService {
 				cs.newLineAtOffset(0, 15);
 				cs.showText("Firmado por: " + pdSignature.getName());
 				cs.newLine();
-				cs.showText(pdSignature.getSignDate().getTime().toString());
+				cs.showText(sdf.format(pdSignature.getSignDate().getTime()));
 				cs.newLine();
 				cs.showText(digitalSignature);
 				cs.endText();
@@ -220,6 +247,8 @@ public class SigningService {
 
 			//Transformar a stream
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			Debug.info("Compilando firma visual...");
+			
 			doc.save(baos);
 			doc.close();
 			
@@ -284,15 +313,6 @@ public class SigningService {
 			if (signatureField != null) {
 				// Diccionario de firmas
 				signature = signatureField.getSignature();
-				
-				if (signature == null) {
-					signature = new PDSignature();
-					// after solving PDFBOX-3524, signatureField.setValue(signature), until then:
-					signatureField.getCOSObject().setItem(COSName.V, signature);
-				} 
-				else {
-					throw new IOException("El documento ya se encuentra firmado con el mismo certificado.");
-				}
 			}
 		}
 		return signature;

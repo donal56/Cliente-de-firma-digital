@@ -11,6 +11,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
@@ -83,13 +84,12 @@ public class SigningService {
 		PDAcroForm 	acroForm 			= 	doc.getDocumentCatalog().getAcroForm();
 
 		if (acroForm != null) {
-			PDSignature existingSignature = findExistingSignature(acroForm, signatureFieldName);
+			PDSignatureField existingSignature = findExistingSignature(acroForm, pdSignature.getName());
 			
 			if(existingSignature != null) {
-				pdSignature = existingSignature;
+				pdSignature = existingSignature.getSignature();
 				Debug.error("Se encontro una firma existente para el mismo certificado.\n" 
-						+ "La firma anterior anterior data de " + pdSignature.getSignDate().getTime().toString() + " y fue firmada por " 
-						+  pdSignature.getContactInfo() + "\n"
+						+ "La firma anterior anterior data de " + pdSignature.getSignDate().getTime().toString() + "\n"
 						+ "Se procederan a actualizar la razón y fecha de firma.");
 
 				pdSignature.setReason("Firma desde cliente de firma electrónica");
@@ -102,7 +102,7 @@ public class SigningService {
 					Debug.info("Se autoconfiguro el formulario de firma para ser visible en visores como Adobe Reader (Atributo NeedsAppearances)");
 				} 
 				else {
-					Debug.error("La firma posiblemente resulte no visible en programas como Adobe Reader.");
+					Debug.error("La firma posiblemente resulte no sea visible en programas como Adobe Reader.");
 				}
 			}
 		}
@@ -138,19 +138,49 @@ public class SigningService {
 		int 	pageNum 	=	srcDoc.getNumberOfPages() - 1;
 		PDPage 	lastPage 	=	srcDoc.getPage(pageNum);
 		
-		Debug.info("Se colocara la firma en la página " + pageNum);
+		Debug.info("Se colocara la firma en la página " + (pageNum + 1));
 		
 		//Especifica el espacio en donde se creara la firma visual, tomando en cuenta si ya existia una previa
 		PDAcroForm 	acroFormSrc = 	srcDoc.getDocumentCatalog().getAcroForm();
 		PDRectangle rect 		= 	null;
-
-		if (acroFormSrc != null && acroFormSrc.getField(signatureFieldName) != null) {
-			rect 	= 	acroFormSrc.getField(signatureFieldName).getWidgets().get(0).getRectangle();
-		}
-		else {
-			Rectangle2D	humanRect =	new Rectangle2D.Float(40, lastPage.getMediaBox().getHeight() - 60, lastPage.getMediaBox().getWidth() - 80, 30);
+		
+		//Calculando la posición de la firma visual
+		List<PDSignatureField> signatureFields = findExistingSignatures(acroFormSrc);
+		Float highestSignatureYAxis = 80f;
+		
+		if(acroFormSrc == null || signatureFields.isEmpty()) {
+			Rectangle2D	humanRect =	new Rectangle2D.Float(40, lastPage.getMediaBox().getHeight() - highestSignatureYAxis, lastPage.getMediaBox().getWidth() - 80, 25);
 			rect 	=	 createSignatureRectangle(lastPage, humanRect);
 		}
+		else {
+			String signer = signatureFieldName.substring(6, signatureFieldName.length());
+			
+			PDSignatureField existingSignature = findExistingSignature(acroFormSrc, signer);
+			
+			if(existingSignature != null) {
+				rect 	= 	existingSignature.getWidgets().get(0).getRectangle();
+			}
+			else {
+				Debug.info("Se encontraron " + signatureFields.size() + " firma(s) anteriores en el documento");
+				
+				for (PDSignatureField signatureField : signatureFields) {
+					if(!signatureField.getWidgets().isEmpty()) {
+						PDRectangle rectWidget = signatureField.getWidgets().get(0).getRectangle();
+						
+						if(rectWidget.getUpperRightY() > highestSignatureYAxis) {
+							highestSignatureYAxis = rectWidget.getUpperRightY();
+						}
+						
+						Debug.info(">> " + signatureField.getSignature().getName());
+					}
+				}
+				
+				Rectangle2D	humanRect =	new Rectangle2D.Float(40, lastPage.getMediaBox().getHeight() - highestSignatureYAxis - 25, lastPage.getMediaBox().getWidth() - 80, 25);
+				rect 	=	 createSignatureRectangle(lastPage, humanRect);
+			}
+		}
+		
+		Debug.info("Posición de la firma visual: " + rect);
 		
 		//Nuevo documento
 		try (PDDocument doc = new PDDocument()) {
@@ -230,17 +260,16 @@ public class SigningService {
 				}
 				
 				SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+				
+				String text = 	"Firmado por " + pdSignature.getName() + " el " + sdf.format(pdSignature.getSignDate().getTime())
+								+ " [" + digitalSignature + "]";
 
 				cs.beginText();
 				cs.setLeading(13.5f);
-				cs.setFont(PDType1Font.HELVETICA_BOLD, 9);
+				cs.setFont(PDType1Font.COURIER_OBLIQUE, 8);
 				cs.setNonStrokingColor(Color.black);
 				cs.newLineAtOffset(0, 15);
-				cs.showText("Firmado por: " + pdSignature.getName());
-				cs.newLine();
-				cs.showText(sdf.format(pdSignature.getSignDate().getTime()));
-				cs.newLine();
-				cs.showText(digitalSignature);
+				cs.showText(text);
 				cs.endText();
 				cs.close();
 			}
@@ -301,21 +330,37 @@ public class SigningService {
 	}
 
 	/*
-	 * Busca firmas existentes
+	 * Busca cierta firmas existente
 	 */
-	private PDSignature findExistingSignature(PDAcroForm acroForm, String sigFieldName) throws IOException {
-		PDSignature 		signature 		= 	null;
-		PDSignatureField 	signatureField;
+	private PDSignatureField findExistingSignature(PDAcroForm acroForm, String sigFieldName) throws IOException {
+		List<PDSignatureField> 	signatureFields = findExistingSignatures(acroForm);
 		
-		if (acroForm != null) {
-			signatureField = (PDSignatureField) acroForm.getField(sigFieldName);
-			
-			if (signatureField != null) {
-				// Diccionario de firmas
-				signature = signatureField.getSignature();
+		PDSignatureField found = null;
+		
+		for (PDSignatureField signatureField : signatureFields) {
+			if(signatureField.getSignature().getName().equals(sigFieldName)) {
+				found = signatureField;
+				break;
 			}
 		}
-		return signature;
+		
+		return found;
+	}
+	
+	/*
+	 * Busca campos de firma existentes
+	 */
+	private List<PDSignatureField> findExistingSignatures(PDAcroForm acroForm) throws IOException {
+		List<PDSignatureField> 	signatureFields = 	new ArrayList<PDSignatureField>();
+		
+		if (acroForm != null) {
+			for (PDField field : acroForm.getFields()) {
+				if(field instanceof PDSignatureField) {
+					signatureFields.add((PDSignatureField) field);
+				}
+			}
+		}
+		return signatureFields;
 	}
 
 }

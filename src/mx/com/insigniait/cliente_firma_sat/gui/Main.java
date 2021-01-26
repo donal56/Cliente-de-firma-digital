@@ -6,6 +6,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.util.StringUtils;
@@ -41,7 +42,7 @@ public class Main extends Application {
 	/*
 	 * Argumentos de la aplicación
 	 */
-	private static Map<String, String> argumentos = null;
+	private static Map<String, String> argumentos = new HashMap<String, String>();
 
 	/*
 	 * Punto de entrada de la aplicación
@@ -63,12 +64,9 @@ public class Main extends Application {
 	public void start(Stage stage) throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
 		
 		//Comprobando parametros
-		if(	argumentos == null || 
-			argumentos.size() == 0 || 
-			!argumentos.containsKey("req") || 
-			!argumentos.containsKey("ss")) {
-			
-			GuiUtils.throwError("Parámetros faltantes.", "Solicitud o secret-salt faltantes: " + argumentos.toString());
+		if(!argumentos.containsKey("req") || !argumentos.containsKey("ss")) {
+			GuiUtils.throwError("Esta aplicación solo es ejecutable a tráves de la plataforma web.", 
+					"Parámetros faltantes. Solicitud o secret-salt faltantes: " + argumentos);
 		}
 
 		//Desencriptando parametros

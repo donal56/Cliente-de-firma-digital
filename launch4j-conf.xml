@@ -2,8 +2,8 @@
 <launch4jConfig>
   <dontWrapJar>false</dontWrapJar>
   <headerType>gui</headerType>
-  <jar>C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.0\Cliente de firma digital SAT.jar</jar>
-  <outfile>C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.0\Cliente de firma digital SAT.exe</outfile>
+  <jar>C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.1\Cliente de firma digital SAT.jar</jar>
+  <outfile>C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.1\Cliente de firma digital SAT.exe</outfile>
   <errTitle>Error</errTitle>
   <cmdLine></cmdLine>
   <chdir>.</chdir>
@@ -13,7 +13,7 @@
   <stayAlive>false</stayAlive>
   <restartOnCrash>true</restartOnCrash>
   <manifest></manifest>
-  <icon>C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.0\icono.ico</icon>
+  <icon>C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.1\icono.ico</icon>
   <singleInstance>
     <mutexName>CLNT-FRM-DGT-SAT</mutexName>
     <windowTitle>Cliente de firma digital SAT</windowTitle>

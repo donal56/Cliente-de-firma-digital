@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Cliente de firma digital SAT"
-#define MyAppVersion "1.0"
+#define MyAppVersion "1.1"
 #define MyAppPublisher "InsigniaIT"
 #define MyAppURL "insigniait.com.mx"
 #define MyAppExeName "Cliente de firma digital SAT.exe"
@@ -35,8 +35,8 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.0\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.0\icono.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.1\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Users\donal\Documents\Eclipse EE\Cliente de firma digital SAT\binaries\1.1\icono.ico"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

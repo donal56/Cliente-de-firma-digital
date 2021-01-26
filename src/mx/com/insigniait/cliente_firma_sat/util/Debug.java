@@ -7,7 +7,7 @@ public class Debug {
 	 */
 	public static void fatal(String debugMsg) {
 		if(debugMsg != null && AppProperties.debug()) {
-			throw new RuntimeException("[FATAL] " + debugMsg);
+			System.err.println("[FATAL] " + debugMsg);
 		}
 	}
 

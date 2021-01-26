@@ -6,8 +6,10 @@ import java.net.URL;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,12 +26,7 @@ import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 
-import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Alert.AlertType;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.ChoiceDialog;
 import mx.com.insigniait.cliente_firma_sat.dto.SatSigner;
 import mx.com.insigniait.cliente_firma_sat.services.SigningService;
 import mx.com.insigniait.cliente_firma_sat.services.TimestampAuthorityClient;
@@ -114,17 +111,23 @@ public class SignerTask extends Task<Void> {
 			AtomicBoolean exito = new AtomicBoolean(false);
 
 			do {
-				//Código de respuesta
-				Debug.info("Iniciado subida de documento firmado...");
-				Long	start2	=	System.currentTimeMillis();
-				
-				HttpResponse 	response 		= 	HttpClients.custom().build().execute(request);
-				int 			responseCode 	= 	response.getStatusLine().getStatusCode();
-				Long			end2			=	System.currentTimeMillis();
-				
-				Debug.info("Solicitud completada en " + (end2 - start2) + "ms\n" + 
-							">>> " + responseCode + " " + response.getStatusLine().getReasonPhrase());
+				//Solicitud
+				int 			responseCode 	= 	404;
+				HttpResponse 	response 		= 	null;
 
+				if(!AppProperties.getBoolean("debug_pdf")) {
+					Debug.info("Iniciado subida de documento firmado...");
+					Long	start2	=	System.currentTimeMillis();
+					
+					response 		= 	HttpClients.custom().build().execute(request);
+					responseCode 	= 	response.getStatusLine().getStatusCode();
+					
+					Long	end2	=	System.currentTimeMillis();
+					
+					Debug.info("Solicitud completada en " + (end2 - start2) + "ms\n" + 
+							">>> " + responseCode + " " + response.getStatusLine().getReasonPhrase());
+				}
+				
 				//En caso de exito guardar la respuesta en los argumentos de la aplicación
 				if (responseCode >= 200 && responseCode < 300) {
 					Debug.info("Documento subido\nRespuesta: " + EntityUtils.toString(response.getEntity()));
@@ -132,50 +135,41 @@ public class SignerTask extends Task<Void> {
 				} 
 				//En caso de fallo mostrar un dialogo de decisión: Reintentar o guardar localmente
 				else {
-					Debug.error("Error al subir. Esperando decisión.");
-
-					ChoiceDialog<String> 	decision 	= 	new ChoiceDialog<String>();
-					ObservableList<String> 	options 	= 	decision.getItems();
-
-					decision.setTitle("Error de conexión");
-					decision.setContentText("Ocurrio un error al subir el documento firmado: " + response.getStatusLine().getReasonPhrase());
-
-					options.add("Reintentar");
-					options.add("Guardar en mi escritorio");
-
-					Optional<String> optionSelected 	= 	decision.showAndWait();
-
-					optionSelected.ifPresent(option -> {
-						switch (option) {
-							case "Guardar en mi escritorio":
-								String filePath = System.getProperty("user.home") + "/Desktop/" + signedPdf.getName() + ".pdf";
-								
-								Debug.info("Guardando localmente en " + filePath);
-								
-								try {
-									FileUtils.moveFile(signedPdf, new File(filePath));
-									exito.set(true);
-								} 
-								catch (IOException e) {
-									GuiUtils.throwError("Error al guardar archivo", e);
-								}
-								
-								break;
-							default:
-								Debug.info("Reintentando...");
-						}
-					});
+					Debug.error("Error al subir. Esto puede ser causado por una configuración de prueba activa. Esperando decisión.");
+					
+					List<String> decisiones = Arrays.asList("Reintentar", "Guardar en mi escritorio");
+					
+					Optional<String> optionSelected = GuiUtils.decision("Error de conexión", "Ocurrio un error al subir el documento firmado: " 
+							+ (response != null ? response.getStatusLine().getReasonPhrase() : "") + "\n", decisiones);
+					
+					switch (optionSelected.orElse("exit")) {
+						case "Guardar en mi escritorio":
+							String filePath = System.getProperty("user.home") + "/Desktop/" + signedPdf.getName() + ".pdf";
+							
+							Debug.info("Guardando localmente en " + filePath);
+							
+							try {
+								FileUtils.moveFile(signedPdf, new File(filePath));
+								exito.set(true);
+							} 
+							catch (IOException e) {
+								GuiUtils.throwError("Error al guardar archivo", e);
+							}
+							
+							break;
+						case "exit":
+							Debug.info("Operación cancelada...");
+							System.exit(0);
+							break;
+						default:
+							Debug.info("Reintentando...");
+					}
 				}
 			}
 			while(!exito.get());
 
 			//Éxito
-			Alert alert = new Alert(AlertType.INFORMATION, "Firma exitosa", ButtonType.OK);
-			alert.setHeaderText("Firma exitosa");
-			alert.setTitle("Firma exitosa");
-			alert.setResizable(false);
-			alert.setOnCloseRequest(e2 -> System.exit(0));
-			alert.show();
+			GuiUtils.finalMessage("Firma exitosa");
 		} 
 		catch (Exception e1) {
 			GuiUtils.throwError(e1.getMessage(), e1);
